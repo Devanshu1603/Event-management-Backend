@@ -1,6 +1,6 @@
 // In eventRoutes.js
 const express = require("express");
-const { createEvent, getAllEvents, getAdminEvents, registerForEvent, updateRegistrationStatus, getRegisteredUsers, markAttendance } = require("../controllers/eventController");
+const { getEventById, createEvent, getAllEvents, getAdminEvents, registerForEvent, updateRegistrationStatus, getRegisteredUsers, markAttendance, getRegisteredEvents } = require("../controllers/eventController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 
@@ -8,6 +8,8 @@ const router = express.Router();
 
 // Route to create a new event (Admin only) with image upload
 router.post("/create", protect, adminOnly, upload.single("posterImg"), createEvent);
+
+router.get("/registered-events", protect, getRegisteredEvents);
 
 // Route to get all events (Accessible to all users)
 router.get("/", getAllEvents);
@@ -26,5 +28,8 @@ router.get("/registrations/:eventId", protect, adminOnly, getRegisteredUsers);
 
 // Route to mark attendance for an event (User scans QR code)
 router.post("/mark-attendance", protect, markAttendance); // New route
+
+// Route to get event details by event ID
+router.get('/:eventId', getEventById);
 
 module.exports = router;

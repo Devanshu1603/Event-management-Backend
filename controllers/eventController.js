@@ -3,6 +3,9 @@ const Event = require("../models/Events");
 const nodemailer = require("nodemailer");
 const EmailTemplate = require("../models/EmailTemplate");
 const QRCode = require("qrcode");
+const User = require('../models/User');
+const jwt = require("jsonwebtoken");
+
 
 // Create a new event (Admin only)
 const createEvent = async (req, res) => {
@@ -39,11 +42,59 @@ const createEvent = async (req, res) => {
   }
 };
 
+const getEventById = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const eventDateUTC = new Date(event.date); // Event date in UTC
+
+    // ✅ Convert event date to IST (only date part)
+    const eventDateIST = new Date(eventDateUTC.getTime() + (5.5 * 60 * 60 * 1000));
+    const eventDateStr = eventDateIST.toISOString().split("T")[0]; // Extract YYYY-MM-DD
+
+    // ✅ Get today's date in IST (ignoring time)
+    const nowUTC = new Date();
+    const nowIST = new Date(nowUTC.getTime() + (5.5 * 60 * 60 * 1000));
+    const todayISTStr = nowIST.toISOString().split("T")[0]; // Extract YYYY-MM-DD
+
+    let status;
+    if (eventDateStr > todayISTStr) {
+      status = "upcoming";
+    } else if (eventDateStr < todayISTStr) {
+      status = "completed";
+    } else {
+      status = "ongoing"; // If today is the event date
+    }
+
+    res.json({
+      ...event.toObject(),
+      status, // Include event status
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+
 // Register a user for an event
 const registerForEvent = async (req, res) => {
   try {
     const { eventId } = req.params;
     const { name, email } = req.body;
+  
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized - No token provided" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET); // Replace with your actual secret key
+    const userId = decoded.userId; // Extract user ID from token
+    console.log("Decoded userId:", userId);
+    console.log("Received eventId:", eventId);
 
     console.log('Registering for event:', eventId);
     console.log('Received data:', { name, email });
@@ -57,6 +108,9 @@ const registerForEvent = async (req, res) => {
       return res.status(404).json({ message: "Event not found" });
     }
 
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
     // Check if the user is already registered
     const alreadyRegistered = event.registrations.some(reg => reg.email === email);
     if (alreadyRegistered) {
@@ -67,6 +121,9 @@ const registerForEvent = async (req, res) => {
     event.registrations.push({ name, email });
     await event.save();
 
+    user.registeredEvents.push(eventId);
+    await user.save();
+
     console.log('Registration successful:', event);
 
     res.status(200).json({ message: "Registration successful", event });
@@ -75,6 +132,27 @@ const registerForEvent = async (req, res) => {
     res.status(500).json({ message: "Error registering for event", error: error.message });
   }
 };
+
+const getRegisteredEvents = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Find user by ID
+    const user = await User.findById(userId).populate({
+      path: "registeredEvents",
+      model: "Event", // Make sure this matches your Event model name
+    });
+        console.log("useridre:- ", user);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ registeredEvents: user.registeredEvents});
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching registered events", error: error.message });
+  }
+};
+
 
 
 // Get all events
@@ -125,7 +203,13 @@ const getAllEvents = async (req, res) => {
       let status;
       if (eventDateStr > todayISTStr) {
         status = "upcoming";
-      }  else {
+      }
+
+      else if(eventDateStr < todayISTStr){
+          status = "completed";
+      }
+       
+       else {
         status = "ongoing"; // If today is the event date
       }
 
@@ -153,13 +237,30 @@ const getAdminEvents = async (req, res) => {
     const events = await Event.find({ createdBy: adminId }).sort({ date: 1 });
     console.log(events);
     const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const today = new Date();
-    console.log("today",today);
 
     const updatedEvents = events.map(event => {
-      const eventDate = new Date(event.date);
-      console.log("eventDate",eventDate);
-      const status = eventDate < today ? "ongoing" : "upcoming";  // Determine status
+      const eventDateUTC = new Date(event.date); // Event date in UTC
+
+      // ✅ Convert event date to IST (only date part)
+      const eventDateIST = new Date(eventDateUTC.getTime() + (5.5 * 60 * 60 * 1000));
+      const eventDateStr = eventDateIST.toISOString().split("T")[0]; // Extract YYYY-MM-DD
+
+      // ✅ Get today's date in IST (ignoring time)
+      const nowUTC = new Date();
+      const nowIST = new Date(nowUTC.getTime() + (5.5 * 60 * 60 * 1000));
+      const todayISTStr = nowIST.toISOString().split("T")[0]; // Extract YYYY-MM-DD
+      let status;
+      if (eventDateStr > todayISTStr) {
+        status = "upcoming";
+      }
+
+      else if(eventDateStr < todayISTStr){
+          status = "completed";
+      }
+       
+       else {
+        status = "ongoing"; // If today is the event date
+      }
 
       return {
         ...event.toObject(),
@@ -313,4 +414,4 @@ const markAttendance = async (req, res) => {
     res.status(500).json({ message: "Error marking attendance", error: error.message });
   }
 };
-module.exports = { createEvent, getAllEvents, getAdminEvents, registerForEvent, updateRegistrationStatus, getRegisteredUsers, markAttendance};
+module.exports = { getEventById,createEvent, getAllEvents, getAdminEvents, registerForEvent, updateRegistrationStatus, getRegisteredUsers, markAttendance, getRegisteredEvents};
