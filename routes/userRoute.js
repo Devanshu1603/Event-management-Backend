@@ -38,10 +38,13 @@ router.put("/profile", protect, upload.single("profileImage"), async (req, res) 
         ).end(req.file.buffer);
       });
 
+      console.log(result);
+
       updatedData.profileImage = result.secure_url;
     }
 
     const updatedUser = await User.findByIdAndUpdate(req.user.id, updatedData, { new: true });
+    console.log(updatedUser);
 
     res.json(updatedUser);
   } catch (error) {
