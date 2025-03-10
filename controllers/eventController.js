@@ -5,7 +5,7 @@ const EmailTemplate = require("../models/EmailTemplate");
 const QRCode = require("qrcode");
 const User = require('../models/User');
 const jwt = require("jsonwebtoken");
-
+const cloudinary = require("../config/cloudinary"); // Import Cloudinary
 
 // Create a new event (Admin only)
 const createEvent = async (req, res) => {
@@ -20,14 +20,18 @@ const createEvent = async (req, res) => {
       return res.status(400).json({ message: "Poster image is required" });
     }
 
-    const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    // Upload image to Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "event_posters", // Cloudinary folder
+    });
 
+    // Save event with Cloudinary image URL
     const event = new Event({
       title,
       date,
       time,
       venue,
-      posterImg: imageUrl,
+      posterImg: result.secure_url, // Cloudinary image URL
       description,
       capacity,
       prerequisites: prerequisites.split(","), 
@@ -41,6 +45,7 @@ const createEvent = async (req, res) => {
     res.status(500).json({ message: "Error creating event", error: error.message });
   }
 };
+
 
 const getEventById = async (req, res) => {
   try {

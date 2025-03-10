@@ -2,7 +2,7 @@
 const express = require("express");
 const { getEventById, createEvent, getAllEvents, getAdminEvents, registerForEvent, updateRegistrationStatus, getRegisteredUsers, markAttendance, getRegisteredEvents } = require("../controllers/eventController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
-const upload = require("../middleware/uploadMiddleware");
+const upload = require("../middleware/multer");
 
 const router = express.Router();
 
