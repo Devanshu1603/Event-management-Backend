@@ -407,7 +407,7 @@ const markAttendance = async (req, res) => {
 
     // Mark attendance (You can add a new field like 'attended' to the registration)
     if (registration.attended) {
-      return res.status(400).json({ message: "Attendance already marked for this user" });
+      return res.status(200).json({ message: "Attendance already marked for this user" });
     }
 
     registration.attended = true;
